@@ -48,6 +48,9 @@ function MapDoubleClickHandler({ onDoubleClick }) {
 }
 
 function App() {
+  //console.log(import.meta.env.VITE_OPENWEATHER_KEY);
+  console.log("OPENWEATHER KEY =", import.meta.env.VITE_OPENWEATHER_KEY);
+
   const [query, setQuery] = useState("");
   const [center, setCenter] = useState([10.76391, 106.68223]); // HCMUS mặc định
   const [gpsPoint, setGpsPoint] = useState(null);
@@ -59,8 +62,42 @@ function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState(null);
 
+  // Weather State
+  const [weather, setWeather] = useState(null)
+
   // Fallback mặc định: HCMUS
   const defaultCenter = [10.76391, 106.68223];
+
+  // FETCH WEATHER API - Ham lay weather
+  const fetchWeather = async (lat, lon) => {
+    try {
+      const apiKey = import.meta.env.VITE_OPENWEATHER_KEY;
+
+      const res = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?` +
+          new URLSearchParams({
+            lat,
+            lon,
+            units: "metric",
+            lang: "vi",
+            appid: apiKey,
+          })
+      );
+
+      const data = await res.json();
+
+      setWeather({
+        temp: data.main.temp,
+        desc: data.weather[0].description,
+        humidity: data.main.humidity,
+        wind: data.wind.speed,
+        icon: data.weather[0].icon,
+        name: data.name,
+      });
+    } catch (err) {
+      console.log("Weather API error:", err);
+    }
+  };
 
   // Hàm lấy POI quanh một tọa độ
   const fetchPOI = async (lat, lon) => {
@@ -102,20 +139,33 @@ function App() {
           const lon = pos.coords.longitude;
 
           setCenter([lat, lon]);
-          setGpsPoint([lat, lon]);
+          setGpsPoint({
+            coords: [lat, lon],
+            type: "unknown",
+            name: "Vị trí người dùng"
+          });
           setMessage("Đã lấy GPS người dùng.");
           fetchPOI(lat, lon);
+          fetchWeather(lat, lon);
         },
         () => {
           setCenter(defaultCenter);
-          setGpsPoint(defaultCenter);
+          setGpsPoint({
+            coords: defaultCenter,
+            type: "Trường ĐH",
+            name: "Trường ĐH KHTN"
+          });
           setMessage("Không lấy được GPS → dùng vị trí Trường ĐH KHTN.");
           fetchPOI(defaultCenter[0], defaultCenter[1]);
         }
       );
     } else {
       setCenter(defaultCenter);
-      setGpsPoint(defaultCenter);
+      setGpsPoint({
+        coords: defaultCenter,
+        type: "Trường ĐH",
+        name: "Trường ĐH KHTN"
+      });
       setMessage("Thiết bị không hỗ trợ GPS → dùng vị trí Trường ĐH KHTN.");
       fetchPOI(defaultCenter[0], defaultCenter[1]);
     }
@@ -150,9 +200,13 @@ function App() {
       const lon = parseFloat(data[0].lon);
 
       setCenter([lat, lon]);
-      setGpsPoint([lat, lon]);
+      setGpsPoint({
+        coords: [lat, lon],
+        name: data[0].name || data[0].display_name.split(",")[0] || query
+      });
 
       fetchPOI(lat, lon);
+      fetchWeather(lat, lon);
 
       setMessage("Đã tìm thấy địa điểm.");
     } catch (err) {
@@ -229,6 +283,32 @@ function App() {
           </button>
         </form>
 
+        {/* WEATHER UI */}
+        {weather && (
+          <div
+            style={{
+              marginTop: "10px",
+              padding: "10px",
+              background: "white",
+              borderRadius: "8px",
+              border: "1px solid #ccc",
+              color: "black",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <img
+              src={`https://openweathermap.org/img/wn/${weather.icon}.png`}
+              alt="icon"
+            />
+            <div>
+              <b>{weather.name}</b> — {weather.temp}°C — {weather.desc} <br />
+              Độ ẩm: {weather.humidity}% — Gió: {weather.wind} m/s
+            </div>
+          </div>
+        )}
+
         {/* AUTOCOMPLETE LIST */}
         {showSuggestions && suggestions.length > 0 && (
           <div
@@ -257,8 +337,12 @@ function App() {
                   const lon = parseFloat(s.lon);
 
                   setCenter([lat, lon]);
-                  setGpsPoint([lat, lon]);
+                  setGpsPoint({
+                    coords: [lat, lon],
+                    name: query
+                  });
                   fetchPOI(lat, lon);
+                  fetchWeather(lat, lon);
 
                   setQuery(s.display_name);
                   setShowSuggestions(false);
@@ -287,10 +371,36 @@ function App() {
 
           {/* Marker trung tâm (đỏ) */}
           {gpsPoint && (
-            <Marker position={gpsPoint} icon={redIcon}>
-              <Popup>Vị trí: {query}</Popup>
+            <Marker position={gpsPoint.coords} icon={redIcon}>
+              {/* POPUP (Click vào) */}
+              <Popup>
+                <div>
+                  <b>{gpsPoint.name}</b> <br />
+                  Toạ độ: ({gpsPoint.coords[0].toFixed(5)}, {gpsPoint.coords[1].toFixed(5)}) <br /><br />
+
+                  {weather ? (
+                    <div style={{ lineHeight: "1.4" }}>
+                      <img
+                        src={`https://openweathermap.org/img/wn/${weather.icon}.png`}
+                        alt="icon"
+                        style={{ verticalAlign: "middle" }}
+                      />
+                      <b> {weather.temp}°C — {weather.desc}</b> <br />
+                      Độ ẩm: {weather.humidity}% <br />
+                      Gió: {weather.wind} m/s <br />
+                      Khu vực: {weather.name}
+                    </div>
+                  ) : (
+                    <i>Đang tải thời tiết...</i>
+                  )}
+                </div>
+              </Popup>
+                
+              {/* TOOLTIP (Rê chuột) */}
               <Tooltip direction="top">
-                ({gpsPoint[0].toFixed(5)}, {gpsPoint[1].toFixed(5)})
+                <b>{gpsPoint.name}</b> <br />
+                ({gpsPoint.coords[0].toFixed(5)}, {gpsPoint.coords[1].toFixed(5)}) <br />
+                {weather && `${weather.temp}°C • ${weather.desc}`}
               </Tooltip>
             </Marker>
           )}
@@ -298,17 +408,37 @@ function App() {
           {/* POI markers */}
           {pois.map((p) => (
             <Marker key={p.id} position={[p.lat, p.lon]}>
-              // Click vào
+              
+              {/* POPUP (Click vào) */}
               <Popup>
                 <b>{p.name}</b> <br />
                 Loại: {p.type} <br />
-                Toạ độ: ({p.lat.toFixed(5)}, {p.lon.toFixed(5)})
-              </Popup>
-              // Rê chuột
+                Toạ độ: ({p.lat.toFixed(5)}, {p.lon.toFixed(5)}) <br /><br />
+
+                {/* WEATHER */}
+                {weather ? (
+                  <div style={{ lineHeight: "1.4" }}>
+                        <img
+                          src={`https://openweathermap.org/img/wn/${weather.icon}.png`}
+                          alt="icon"
+                          style={{ verticalAlign: "middle" }}
+                        />
+                        <b> {weather.temp}°C — {weather.desc}</b> <br />
+                        Độ ẩm: {weather.humidity}% <br />
+                        Gió: {weather.wind} m/s <br />
+                        Khu vực: {weather.name}
+                      </div>
+                    ) : (
+                      <i>Đang tải thời tiết...</i>
+                    )}
+                </Popup>
+
+              {/* TOOLTIP (Rê chuột) */}
               <Tooltip direction="top">
                 <b>{p.name}</b> <br />
                 {p.type} <br />
-                ({p.lat.toFixed(5)}, {p.lon.toFixed(5)})
+                ({p.lat.toFixed(5)}, {p.lon.toFixed(5)}) <br />
+                {weather && `${weather.temp}°C • ${weather.desc}`}
               </Tooltip>
             </Marker>
           ))}
@@ -319,9 +449,14 @@ function App() {
               const lat = latlng.lat;
               const lon = latlng.lng;
 
-              setGpsPoint([lat, lon]);
+              setGpsPoint({
+                coords: [lat, lon],
+                type: "unknown",
+                name: "Vị trí chọn"
+              });
               setCenter([lat, lon]);
               fetchPOI(lat, lon);
+              fetchWeather(lat, lon);
 
               setMessage("Đã chọn vị trí trên bản đồ.");
             }}
