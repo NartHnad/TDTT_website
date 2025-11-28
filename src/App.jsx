@@ -62,6 +62,11 @@ function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState(null);
 
+  // Translate State
+  const [showTranslate, setShowTranslate] = useState(false);
+  const [inputText, setInputText] = useState("");
+  const [translatedText, setTranslatedText] = useState("");
+
   // Weather State
   const [weather, setWeather] = useState(null)
 
@@ -98,6 +103,28 @@ function App() {
       console.log("Weather API error:", err);
     }
   };
+
+  // Ham goi API dich
+  const translateText = async () => {
+    if (!inputText.trim()) return;
+
+    try {
+      const res = await fetch(
+        "https://api.mymemory.translated.net/get?q=" +
+          encodeURIComponent(inputText) +
+          "&langpair=en|vi"
+      );
+
+      const data = await res.json();
+
+      // MyMemory trả về text trong responseData.translatedText
+      setTranslatedText(data.responseData.translatedText || "Không tìm thấy bản dịch.");
+    } catch (err) {
+      console.error(err);
+      setTranslatedText("Lỗi dịch! Vui lòng thử lại.");
+    }
+  };
+
 
   // Hàm lấy POI quanh một tọa độ
   const fetchPOI = async (lat, lon) => {
@@ -283,6 +310,22 @@ function App() {
           </button>
         </form>
 
+        <button
+          onClick={() => setShowTranslate(true)}
+          style={{
+            marginTop: "10px",
+            background: "#28a745",
+            color: "white",
+            padding: "8px 12px",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer"
+          }}
+        >
+          Dịch nhanh
+        </button>
+
+
         {/* WEATHER UI */}
         {weather && (
           <div
@@ -463,6 +506,51 @@ function App() {
           />
         </MapContainer>
       </div>
+
+      {showTranslate && (
+        <div className="translate-popup">
+          <div className="translate-header">
+            Dịch tiếng Anh → tiếng Việt
+            <span
+              className="translate-close"
+              onClick={() => setShowTranslate(false)}
+            >
+              ✖
+            </span>
+          </div>
+
+          <textarea
+            rows="3"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="Nhập câu tiếng Anh..."
+            style={{ width: "100%", padding: "6px" }}
+          />
+
+          <button
+            onClick={translateText}
+            style={{
+              marginTop: "10px",
+              width: "100%",
+              background: "#007bff",
+              color: "white",
+              border: "none",
+              padding: "8px",
+              borderRadius: "5px",
+              cursor: "pointer"
+            }}
+          >
+            Dịch
+          </button>
+
+          {translatedText && (
+            <div style={{ marginTop: "10px", background: "#f7f7f7", padding: "8px", borderRadius: "5px" }}>
+              <b>Kết quả:</b><br />
+              {translatedText}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
