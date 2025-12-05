@@ -11,6 +11,11 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+// Login email using firebase
+import Login from "./Login";
+import { auth } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
+
 // Fix icon mặc định Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -69,6 +74,9 @@ function App() {
 
   // Weather State
   const [weather, setWeather] = useState(null)
+
+  // User state
+  const [user, setUser] = useState(null);
 
   // Fallback mặc định: HCMUS
   const defaultCenter = [10.76391, 106.68223];
@@ -156,6 +164,14 @@ function App() {
       setPois([]);
     }
   };
+
+  // Login
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsub();
+  }, []);
 
   // Lấy GPS người dùng
   useEffect(() => {
@@ -270,6 +286,8 @@ function App() {
 
     setTypingTimeout(timeout);
   };
+
+  if (!user) return <Login />;
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
